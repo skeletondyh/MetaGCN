@@ -141,9 +141,14 @@ def train(train_data, test_data=None):
 
     author_p_author_adj = train_data[0]
     author_p_author_features = train_data[1]
+    author_p_author_features = np.vstack([author_p_author_features, np.zeros((author_p_author_features.shape[1], ), dtype=np.float32)])
+
 
     author_v_author_adj = train_data[2]
     author_v_author_features = train_data[3]
+    author_v_author_features = np.vstack([author_v_author_features, np.zeros((author_v_author_features.shape[1], ), dtype=np.float32)])
+
+    print("Input dim: ", author_p_author_features.shape[1])
 
     degrees = train_data[4]
 
@@ -187,6 +192,7 @@ def train(train_data, test_data=None):
                                      features,
                                      degrees,
                                      layer_infos=layer_infos, 
+                                     input_dim=author_p_author_features.shape[1],
                                      model_size=FLAGS.model_size,
                                      identity_dim = FLAGS.identity_dim,
                                      logging=True)
@@ -205,7 +211,8 @@ def train(train_data, test_data=None):
         model = SampleAndAggregate(placeholders, 
                                      features,
                                      degrees,
-                                     layer_infos=layer_infos, 
+                                     layer_infos=layer_infos,
+                                     input_dim=author_p_author_features.shape[1], 
                                      aggregator_type="gcn",
                                      model_size=FLAGS.model_size,
                                      identity_dim = FLAGS.identity_dim,
@@ -224,6 +231,7 @@ def train(train_data, test_data=None):
                                      features,
                                      degrees,
                                      layer_infos=layer_infos, 
+                                     input_dim=author_p_author_features.shape[1],
                                      identity_dim = FLAGS.identity_dim,
                                      aggregator_type="seq",
                                      model_size=FLAGS.model_size,
@@ -238,9 +246,10 @@ def train(train_data, test_data=None):
                             SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
-                                    features,,
+                                    features,
                                     degrees,
                                      layer_infos=layer_infos, 
+                                     input_dim=author_p_author_features.shape[1],
                                      aggregator_type="maxpool",
                                      model_size=FLAGS.model_size,
                                      identity_dim = FLAGS.identity_dim,
@@ -257,19 +266,22 @@ def train(train_data, test_data=None):
                                     features,
                                     degrees,
                                      layer_infos=layer_infos, 
+                                     input_dim=author_p_author_features.shape[1],
                                      aggregator_type="meanpool",
                                      model_size=FLAGS.model_size,
                                      identity_dim = FLAGS.identity_dim,
                                      logging=True)
 
-    elif FLAGS.model == 'n2v':
+    else:
+        raise Exception('Error: model name unrecognized.')
+    '''elif FLAGS.model == 'n2v':
         model = Node2VecModel(placeholders, features.shape[0],
                                        minibatch.deg,
                                        #2x because graphsage uses concat
                                        nodevec_dim=2*FLAGS.dim_1,
                                        lr=FLAGS.learning_rate)
     else:
-        raise Exception('Error: model name unrecognized.')
+        raise Exception('Error: model name unrecognized.')'''
 
     config = tf.ConfigProto(log_device_placement=FLAGS.log_device_placement)
     config.gpu_options.allow_growth = True

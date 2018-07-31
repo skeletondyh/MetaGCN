@@ -8,6 +8,7 @@ import graphsage.metrics as metrics
 
 from .prediction import BipartiteEdgePredLayer
 from .aggregators import MeanAggregator, MaxPoolingAggregator, MeanPoolingAggregator, SeqAggregator, GCNAggregator
+from .inits import glorot
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -189,8 +190,8 @@ class SampleAndAggregate(GeneralizedModel):
     Base implementation of unsupervised GraphSAGE
     """
 
-    def __init__(self, placeholders, features, adj, degrees,
-            layer_infos, concat=True, aggregator_type="mean", 
+    def __init__(self, placeholders, features, degrees,
+            layer_infos, input_dim, concat=True, aggregator_type="mean", 
             model_size="small", identity_dim=0,
             **kwargs):
         '''
@@ -198,7 +199,7 @@ class SampleAndAggregate(GeneralizedModel):
             - placeholders: Stanford TensorFlow placeholder object.
             - features: Numpy array with node features. 
                         NOTE: Pass a None object to train in featureless mode (identity features for nodes)!
-            - adj: Numpy array with adjacency lists (padded with random re-samples)
+            ### - adj: Numpy array with adjacency lists (padded with random re-samples)
             - degrees: Numpy array with node degrees. 
             - layer_infos: List of SAGEInfo namedtuples that describe the parameters of all 
                    the recursive layers. See SAGEInfo definition above.
@@ -225,8 +226,8 @@ class SampleAndAggregate(GeneralizedModel):
         self.inputs1 = placeholders["batch1"]
         self.inputs2 = placeholders["batch2"]
         self.model_size = model_size
-        self.adj_info = adj
-        if identity_dim > 0:
+        #self.adj_info = adj
+        '''if identity_dim > 0:
            self.embeds = tf.get_variable("node_embeddings", [adj.get_shape().as_list()[0], identity_dim])
         else:
            self.embeds = None
@@ -237,11 +238,12 @@ class SampleAndAggregate(GeneralizedModel):
         else:
             self.features = tf.Variable(tf.constant(features, dtype=tf.float32), trainable=False)
             if not self.embeds is None:
-                self.features = tf.concat([self.embeds, self.features], axis=1)
+                self.features = tf.concat([self.embeds, self.features], axis=1)'''
+        self.features = features
         self.degrees = degrees
         self.concat = concat
 
-        self.dims = [(0 if features is None else features.shape[1]) + identity_dim]
+        self.dims = [input_dim]
         self.dims.extend([layer_infos[i].output_dim for i in range(len(layer_infos))])
         self.batch_size = placeholders["batch_size"]
         self.placeholders = placeholders
@@ -253,6 +255,7 @@ class SampleAndAggregate(GeneralizedModel):
 
     def sample(self, inputs, layer_infos, batch_size=None):
         """ Sample neighbors to be the supportive fields for multi-layer convolutions.
+            Split into multiple channels, list format
 
         Args:
             inputs: batch inputs
@@ -261,16 +264,18 @@ class SampleAndAggregate(GeneralizedModel):
         
         if batch_size is None:
             batch_size = self.batch_size
-        samples = [inputs]
+        samples = [(inputs, inputs)]
         # size of convolution support at each layer per node
-        support_size = 1
+        support_size = (1, 1)
         support_sizes = [support_size]
         for k in range(len(layer_infos)):
             t = len(layer_infos) - k - 1
-            support_size *= layer_infos[t].num_samples
+            support_size[0] *= layer_infos[t].num_samples[0]
+            support_size[1] *= layer_infos[t].num_samples[1]
             sampler = layer_infos[t].neigh_sampler
-            node = sampler((samples[k], layer_infos[t].num_samples))
-            samples.append(tf.reshape(node, [support_size * batch_size,]))
+            node0 = sampler[0]((samples[k][0], layer_infos[t].num_samples[0]))
+            node1 = sampler[1]((samples[k][1], layer_infos[t].num_samples[1]))
+            samples.append((tf.reshape(node0, [support_size[0] * batch_size,]), tf.reshape(node1, [support_size[1] * batch_size,])))
             support_sizes.append(support_size)
         return samples, support_sizes
 
@@ -279,6 +284,8 @@ class SampleAndAggregate(GeneralizedModel):
             aggregators=None, name=None, concat=False, model_size="small"):
         """ At each layer, aggregate hidden representations of neighbors to compute the hidden representations 
             at next layer.
+            Multi-channel relation
+
         Args:
             samples: a list of samples of variable hops away for convolving at each layer of the
                 network. Length is the number of layers + 1. Each is a vector of node indices.
@@ -296,11 +303,14 @@ class SampleAndAggregate(GeneralizedModel):
             batch_size = self.batch_size
 
         # length: number of layers + 1
-        hidden = [tf.nn.embedding_lookup(input_features, node_samples) for node_samples in samples]
+        hidden = [(tf.nn.embedding_lookup(input_features[0], node_samples[0]), tf.nn.embedding_lookup(input_features[1], node_samples[1]))
+                    for node_samples in samples]
         new_agg = aggregators is None
         if new_agg:
             aggregators = []
         for layer in range(len(num_samples)):
+
+            '''same aggregator across channels'''
             if new_agg:
                 dim_mult = 2 if concat and (layer != 0) else 1
                 # aggregator at current layer
@@ -315,21 +325,33 @@ class SampleAndAggregate(GeneralizedModel):
                 aggregators.append(aggregator)
             else:
                 aggregator = aggregators[layer]
+            
             # hidden representation at current layer for all support nodes that are various hops away
             next_hidden = []
             # as layer increases, the number of support nodes needed decreases
             for hop in range(len(num_samples) - layer):
                 dim_mult = 2 if concat and (layer != 0) else 1
-                neigh_dims = [batch_size * support_sizes[hop], 
-                              num_samples[len(num_samples) - hop - 1], 
-                              dim_mult*dims[layer]]
-                h = aggregator((hidden[hop],
-                                tf.reshape(hidden[hop + 1], neigh_dims)))
+                neigh_dims = ([batch_size * support_sizes[hop][0], 
+                              num_samples[len(num_samples) - hop - 1][0], 
+                              dim_mult*dims[layer]], [batch_size * support_sizes[hop][1], num_samples[len(num_samples) - hop - 1][1],
+                              dim_mult*dims[layer]])
+                h = (aggregator((hidden[hop][0],
+                                tf.reshape(hidden[hop + 1][0], neigh_dims[0]))), aggregator((hidden[hop][1], tf.reshape(hidden[hop + 1][1], 
+                                    neigh_dims[1]))))
                 next_hidden.append(h)
             hidden = next_hidden
-        return hidden[0], aggregators
+
+
+        across_channel_hidden = tf.concat([hidden[0][0], hidden[0][1]], axis=1)
+        across_channel_hidden = tf.matmul(across_channel_hidden, self.meta_weight)
+
+        return across_channel_hidden, aggregators
 
     def _build(self):
+
+        dim_mult = 2 if self.concat else 1
+        self.meta_weight = glorot([2 * dim_mult * self.dims[-1], dim_mult * self.dims[-1]], name='meta_weights')
+
         labels = tf.reshape(
                 tf.cast(self.placeholders['batch2'], dtype=tf.int64),
                 [self.batch_size, 1])
@@ -347,19 +369,19 @@ class SampleAndAggregate(GeneralizedModel):
         samples1, support_sizes1 = self.sample(self.inputs1, self.layer_infos)
         samples2, support_sizes2 = self.sample(self.inputs2, self.layer_infos)
         num_samples = [layer_info.num_samples for layer_info in self.layer_infos]
-        self.outputs1, self.aggregators = self.aggregate(samples1, [self.features], self.dims, num_samples,
+        self.outputs1, self.aggregators = self.aggregate(samples1, self.features, self.dims, num_samples,
                 support_sizes1, concat=self.concat, model_size=self.model_size)
-        self.outputs2, _ = self.aggregate(samples2, [self.features], self.dims, num_samples,
+        self.outputs2, _ = self.aggregate(samples2, self.features, self.dims, num_samples,
                 support_sizes2, aggregators=self.aggregators, concat=self.concat,
                 model_size=self.model_size)
 
         neg_samples, neg_support_sizes = self.sample(self.neg_samples, self.layer_infos,
             FLAGS.neg_sample_size)
-        self.neg_outputs, _ = self.aggregate(neg_samples, [self.features], self.dims, num_samples,
+        self.neg_outputs, _ = self.aggregate(neg_samples, self.features, self.dims, num_samples,
                 neg_support_sizes, batch_size=FLAGS.neg_sample_size, aggregators=self.aggregators,
                 concat=self.concat, model_size=self.model_size)
 
-        dim_mult = 2 if self.concat else 1
+        #dim_mult = 2 if self.concat else 1
         self.link_pred_layer = BipartiteEdgePredLayer(dim_mult*self.dims[-1],
                 dim_mult*self.dims[-1], self.placeholders, act=tf.nn.sigmoid, 
                 bilinear_weights=False,
