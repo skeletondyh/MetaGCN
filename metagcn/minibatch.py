@@ -12,6 +12,8 @@ class SimpleMinibatchIterator(object):
         self.placeholders = placeholders
         self.train_edges = np.random.permutation(context_pairs)
         self.batch_num = 0
+        self.nodes = [i for i in range(num_nodes)]
+        self.num_nodes = num_nodes
 
     def end(self):
         return self.batch_num * self.batch_size >= len(self.train_edges)
@@ -20,8 +22,8 @@ class SimpleMinibatchIterator(object):
         batch1 = []
         batch2 = []
         for node1, node2 in batch_edges:
-            batch1.append(self.id2idx[node1])
-            batch2.append(self.id2idx[node2])
+            batch1.append(int(node1))
+            batch2.append(int(node2))
 
         feed_dict = dict()
         feed_dict.update({self.placeholders['batch_size'] : len(batch_edges)})
@@ -39,14 +41,13 @@ class SimpleMinibatchIterator(object):
 
     def shuffle(self):
         np.random.shuffle(self.train_edges)
-        self.batch_size = 0
+        self.batch_num = 0
 
-     def incremental_embed_feed_dict(self, size, iter_num):
-        node_list = self.nodes
-        val_nodes = node_list[iter_num*size:min((iter_num+1)*size, 
-            len(node_list))]
+    def incremental_embed_feed_dict(self, size, iter_num):
+        val_nodes = self.nodes[iter_num*size:min((iter_num+1)*size,
+            self.num_nodes)]
         val_edges = [(n,n) for n in val_nodes]
-        return self.batch_feed_dict(val_edges), (iter_num+1)*size >= len(node_list), val_edges
+        return self.batch_feed_dict(val_edges), (iter_num+1)*size >= self.num_nodes, val_edges
 
 
 

@@ -81,7 +81,7 @@ def load_data(prefix, normalize=True, load_walks=False):
     if load_walks:
         with open(prefix + "MetaGCN-walks.txt") as fp:
             for line in fp:
-                walks.append((int(line.split()[0]), int(line.split()[1])))
+                walks.append((line.split()[0], line.split()[1]))
 
     return author_p_author_adj, author_p_author_features, author_v_author_adj, author_v_author_features, degrees, walks
 
