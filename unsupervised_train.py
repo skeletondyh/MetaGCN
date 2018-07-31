@@ -185,13 +185,14 @@ def train(train_data, test_data=None):
 
         model = SampleAndAggregate(placeholders, 
                                      features,
-                                     adj_info,
-                                     minibatch.deg,
+                                     degrees,
                                      layer_infos=layer_infos, 
                                      model_size=FLAGS.model_size,
                                      identity_dim = FLAGS.identity_dim,
                                      logging=True)
     elif FLAGS.model == 'gcn':
+
+        ## Does concat=False equals 2 * output_dims?
         # Create model
         #sampler = UniformNeighborSampler(adj_info)
         samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
@@ -203,8 +204,7 @@ def train(train_data, test_data=None):
 
         model = SampleAndAggregate(placeholders, 
                                      features,
-                                     adj_info,
-                                     minibatch.deg,
+                                     degrees,
                                      layer_infos=layer_infos, 
                                      aggregator_type="gcn",
                                      model_size=FLAGS.model_size,
@@ -222,8 +222,7 @@ def train(train_data, test_data=None):
 
         model = SampleAndAggregate(placeholders, 
                                      features,
-                                     adj_info,
-                                     minibatch.deg,
+                                     degrees,
                                      layer_infos=layer_infos, 
                                      identity_dim = FLAGS.identity_dim,
                                      aggregator_type="seq",
@@ -239,9 +238,8 @@ def train(train_data, test_data=None):
                             SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
-                                    features,
-                                    adj_info,
-                                    minibatch.deg,
+                                    features,,
+                                    degrees,
                                      layer_infos=layer_infos, 
                                      aggregator_type="maxpool",
                                      model_size=FLAGS.model_size,
@@ -257,8 +255,7 @@ def train(train_data, test_data=None):
 
         model = SampleAndAggregate(placeholders, 
                                     features,
-                                    adj_info,
-                                    minibatch.deg,
+                                    degrees,
                                      layer_infos=layer_infos, 
                                      aggregator_type="meanpool",
                                      model_size=FLAGS.model_size,
