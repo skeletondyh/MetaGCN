@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 
 from graphsage.models import SampleAndAggregate, SAGEInfo, Node2VecModel
-from graphsage.minibatch import EdgeMinibatchIterator
+from graphsage.minibatch import EdgeMinibatchIterator, SimpleMinibatchIterator
 from graphsage.neigh_samplers import UniformNeighborSampler
 from graphsage.utils import load_data
 
@@ -156,7 +156,8 @@ def train(train_data, test_data=None):
             max_degree=FLAGS.max_degree, 
             num_neg_samples=FLAGS.neg_sample_size,
             context_pairs = context_pairs)'''
-    
+
+    minibatch = SimpleMinibatchIterator(placeholders, num_nodes=len(degrees), batch_size=FLAGS.batch_size, context_pairs=context_pairs)
 
     author_p_author_adj_info_ph = tf.placeholder(tf.int32, shape=author_p_author_adj.shape)
     author_p_author_adj_info = tf.Variable(author_p_author_adj_info_ph, trainable=False, name="author_p_author_adj_info")
@@ -170,14 +171,17 @@ def train(train_data, test_data=None):
     author_v_author_features_ph = tf.placeholder(tf.float32, shape=author_v_author_features.shape)
     author_v_author_features_info = tf.Variable(tf.float32, trainable=False, name='author_v_author_feats')
 
-    adj_info = [author_p_author_adj_info, author_v_author_adj_info]
-
+    samplers = [UniformNeighborSampler(author_p_author_adj_info), UniformNeighborSampler(author_v_author_adj_info)]
+    features = [author_p_author_features_info, author_v_author_features_info]
 
     if FLAGS.model == 'graphsage_mean':
         # Create model
-        sampler = UniformNeighborSampler(adj_info)
-        layer_infos = [SAGEInfo("node", sampler, FLAGS.samples_1, FLAGS.dim_1),
-                            SAGEInfo("node", sampler, FLAGS.samples_2, FLAGS.dim_2)]
+        # sampler = UniformNeighborSampler(adj_info)
+        samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
+        samples_2 = [FLAGS.samples_2, FLAGS.samples_2]
+
+        layer_infos = [SAGEInfo("node", samplers, samples_1, FLAGS.dim_1),
+                            SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
                                      features,
@@ -189,9 +193,13 @@ def train(train_data, test_data=None):
                                      logging=True)
     elif FLAGS.model == 'gcn':
         # Create model
-        sampler = UniformNeighborSampler(adj_info)
-        layer_infos = [SAGEInfo("node", sampler, FLAGS.samples_1, 2*FLAGS.dim_1),
-                            SAGEInfo("node", sampler, FLAGS.samples_2, 2*FLAGS.dim_2)]
+        #sampler = UniformNeighborSampler(adj_info)
+        samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
+        samples_2 = [FLAGS.samples_2, FLAGS.samples_2]
+
+
+        layer_infos = [SAGEInfo("node", samplers, samples_1, 2*FLAGS.dim_1),
+                            SAGEInfo("node", samplers, samples_2, 2*FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
                                      features,
@@ -205,9 +213,12 @@ def train(train_data, test_data=None):
                                      logging=True)
 
     elif FLAGS.model == 'graphsage_seq':
-        sampler = UniformNeighborSampler(adj_info)
-        layer_infos = [SAGEInfo("node", sampler, FLAGS.samples_1, FLAGS.dim_1),
-                            SAGEInfo("node", sampler, FLAGS.samples_2, FLAGS.dim_2)]
+        #sampler = UniformNeighborSampler(adj_info)
+        samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
+        samples_2 = [FLAGS.samples_2, FLAGS.samples_2]
+
+        layer_infos = [SAGEInfo("node", samplers, samples_1, FLAGS.dim_1),
+                            SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
                                      features,
@@ -220,9 +231,12 @@ def train(train_data, test_data=None):
                                      logging=True)
 
     elif FLAGS.model == 'graphsage_maxpool':
-        sampler = UniformNeighborSampler(adj_info)
-        layer_infos = [SAGEInfo("node", sampler, FLAGS.samples_1, FLAGS.dim_1),
-                            SAGEInfo("node", sampler, FLAGS.samples_2, FLAGS.dim_2)]
+        #sampler = UniformNeighborSampler(adj_info)
+        samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
+        samples_2 = [FLAGS.samples_2, FLAGS.samples_2]
+
+        layer_infos = [SAGEInfo("node", samplers, samples_1, FLAGS.dim_1),
+                            SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
                                     features,
@@ -234,9 +248,12 @@ def train(train_data, test_data=None):
                                      identity_dim = FLAGS.identity_dim,
                                      logging=True)
     elif FLAGS.model == 'graphsage_meanpool':
-        sampler = UniformNeighborSampler(adj_info)
-        layer_infos = [SAGEInfo("node", sampler, FLAGS.samples_1, FLAGS.dim_1),
-                            SAGEInfo("node", sampler, FLAGS.samples_2, FLAGS.dim_2)]
+        #sampler = UniformNeighborSampler(adj_info)
+        samples_1 = [FLAGS.samples_1, FLAGS.samples_1]
+        samples_2 = [FLAGS.samples_2, FLAGS.samples_2]
+
+        layer_infos = [SAGEInfo("node", samplers, samples_1, FLAGS.dim_1),
+                            SAGEInfo("node", samplers, samples_2, FLAGS.dim_2)]
 
         model = SampleAndAggregate(placeholders, 
                                     features,
