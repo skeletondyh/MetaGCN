@@ -1,12 +1,14 @@
 import sys
 import os
 import random
-from collections import Counter
+import time 
+
+random.seed(int(time.time()))
 
 class MetaPathGenerator:
 	def __init__(self):
-		self.id_author = dict()
-		self.id_conf = dict()
+		#self.id_author = dict()
+		#self.id_conf = dict()
 		self.author_coauthorlist = dict()
 		self.conf_authorlist = dict()
 		self.author_conflist = dict()
@@ -16,7 +18,7 @@ class MetaPathGenerator:
 		self.paper_conf = dict()
 
 	def read_data(self, dirpath):
-		with open(dirpath + "/id_author.txt") as adictfile:
+		'''with open(dirpath + "/id_author.txt") as adictfile:
 			for line in adictfile:
 				toks = line.strip().split("\t")
 				if len(toks) == 2:
@@ -31,7 +33,7 @@ class MetaPathGenerator:
 					newconf = toks[1].replace(" ", "")
 					self.id_conf[toks[0]] = newconf
 
-		#print "#conf", len(self.id_conf)
+		#print "#conf", len(self.id_conf)'''
 
 		with open(dirpath + "/paper_author.txt") as pafile:
 			for line in pafile:
@@ -40,10 +42,12 @@ class MetaPathGenerator:
 					p, a = toks[0], toks[1]
 					if p not in self.paper_author:
 						self.paper_author[p] = []
-					self.paper_author[p].append(a)
+					if a not in self.paper_author[p]:
+						self.paper_author[p].append(a)
 					if a not in self.author_paper:
 						self.author_paper[a] = []
-					self.author_paper[a].append(p)
+					if p not in self.author_paper[a]:
+						self.author_paper[a].append(p)
 
 		with open(dirpath + "/paper_conf.txt") as pcfile:
 			for line in pcfile:
@@ -55,7 +59,7 @@ class MetaPathGenerator:
 						self.conf_paper[c] = []
 					self.conf_paper[c].append(p)
 
-		sumpapersconf, sumauthorsconf = 0, 0
+		'''sumpapersconf, sumauthorsconf = 0, 0
 		conf_authors = dict()
 		for conf in self.conf_paper:
 			papers = self.conf_paper[conf]
@@ -63,11 +67,11 @@ class MetaPathGenerator:
 			for paper in papers:
 				if paper in self.paper_author:
 					authors = self.paper_author[paper]
-					sumauthorsconf += len(authors)
+					sumauthorsconf += len(authors)'''
 
-		print "#confs  ", len(self.conf_paper)
-		print "#papers ", sumpapersconf,  "#papers per conf ", sumpapersconf / len(self.conf_paper)
-		print "#authors", sumauthorsconf, "#authors per conf", sumauthorsconf / len(self.conf_paper)
+		#print "#confs  ", len(self.conf_paper)
+		#print "#papers ", sumpapersconf,  "#papers per conf ", sumpapersconf / len(self.conf_paper)
+		#print "#authors", sumauthorsconf, "#authors per conf", sumauthorsconf / len(self.conf_paper)
 
 
 	def generate_random_aca(self, outfilename, numwalks, walklength):
@@ -84,22 +88,44 @@ class MetaPathGenerator:
 
 		outfile = open(outfilename, 'w')
 		for conf in self.conf_authorlist:
-			conf0 = conf
-			for j in xrange(0, numwalks ): #wnum walks
-				outline = self.id_conf[conf0]
+			for j in xrange(0, numwalks): #wnum walks
+				conf0 = conf
+				outline = str(conf0)
 				for i in xrange(0, walklength):
-					authors = self.conf_authorlist[conf]
+					authors = self.conf_authorlist[conf0]
 					numa = len(authors)
 					authorid = random.randrange(numa)
 					author = authors[authorid]
-					outline += " " + self.id_author[author]
+					outline += " " + str(author)
 					confs = self.author_conflist[author]
 					numc = len(confs)
 					confid = random.randrange(numc)
-					conf = confs[confid]
-					outline += " " + self.id_conf[conf]
+					conf0 = confs[confid]
+					outline += " " + str(conf0)#self.id_conf[conf]
 				outfile.write(outline + "\n")
 		outfile.close()
+
+
+	def read_walks(self, input_filename, output_filename, window_size):
+		fp = open(filename)
+		fp_output = open(output_filename, 'w')
+		for line in fp:
+			line_list = line.split()
+			authors = [line_list[i] for i in range(1, len(line_list), 2)]
+			length = len(authors)
+			for i in range(length):
+				left_idx = max(i - window_size, 0)
+				right_idx = min(length, i + window_size + 1)
+				for item in authors[left_idx:i]:
+					if item != authors[i]:
+						fp_output.write(authors[i] + '\t' + item + '\n')
+				for item in authors[i + 1:right_idx]:
+					if item != authors[i]:
+						fp_output.write(authors[i] + '\t' + item + '\n')
+
+		fp.close()
+		fp_output.close()
+
 
 
 #python py4genMetaPaths.py 1000 100 net_aminer output.aminer.w1000.l100.txt
@@ -111,15 +137,17 @@ dirpath = "net_dbis"
 
 numwalks = int(sys.argv[1])
 walklength = int(sys.argv[2])
+window_size = int(sys.argv[3])
 
 dirpath = sys.argv[3]
 outfilename = sys.argv[4]
+pair_filename = sys.argv[5]
 
 def main():
 	mpg = MetaPathGenerator()
 	mpg.read_data(dirpath)
 	mpg.generate_random_aca(outfilename, numwalks, walklength)
-
+	mpg.read_walks(outfilename, pair_filename, window_size)
 
 if __name__ == "__main__":
 	main()
