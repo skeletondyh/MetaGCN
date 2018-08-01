@@ -15,11 +15,23 @@ def evaluate(label_prefix, embedding_prefix, test_size):
         author_labels[aid] = label
     fp.close()
 
-    embedding = np.load(embedding_prefix + 'val.npy')
+    embedding_all = np.load(embedding_prefix + 'val.npy')
     embedding_id_fp = open(embedding_prefix + 'val.txt')
-    embedding_ids = embedding_id_fp.readlines()
+    lines = embedding_id_fp.readlines()
 
-    target = np.array([author_labels[line.strip()] for line in embedding_ids])
+    embedding_ids = []
+    embedding_idx = []
+
+    for i in range(len(lines)):
+        n = lines[i].strip()
+        if int(n) < len(author_labels):
+            embedding_ids.append(n)
+            embedding_idx.append(i)
+
+    embedding = embedding_all[embedding_idx]
+    print(embedding.shape)
+
+    target = np.array([author_labels[each] for each in embedding_ids])
 
     x_train, x_test, y_train, y_test = train_test_split(embedding, target, test_size=test_size, random_state=int(time.time()))
 
