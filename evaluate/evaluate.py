@@ -30,8 +30,9 @@ def evaluate(label_prefix, embedding_prefix, test_size):
     predictions = logisticRegr.predict(x_test)
 
     macro_f1_score = metrics.f1_score(y_test, predictions, average='macro')
+    micro_f1_score = metrics.f1_score(y_test, predictions, average='micro')
 
-    print(macro_f1_score)
+    print("Macro F1: ", macro_f1_score, "Micro F1: ", micro_f1_score)
 
 
 label_path = sys.argv[1]
